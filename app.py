@@ -4,7 +4,7 @@ import random
 import json
 from mtranslate import translate
 import streamlit.components.v1 as components
-from st_gsheets_connection import GSheetsConnection
+from streamlit_gsheets import GSheetsConnection
 
 # App Style Configuration
 st.set_page_config(page_title="Balagam - Your Family Tree", layout="wide")
