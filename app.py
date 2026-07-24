@@ -4,7 +4,7 @@ import random
 import json
 from mtranslate import translate
 import streamlit.components.v1 as components
-from streamlit_gsheets import GSheetsConnection
+from st_gsheets_connection import GSheetsConnection
 
 # App Style Configuration
 st.set_page_config(page_title="Balagam - Your Family Tree", layout="wide")
@@ -88,8 +88,8 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data():
     try:
-        # ttl=2 ensures data refreshes every 2 seconds for live collaboration
-        return conn.read(ttl=2).fillna("")
+        # ttl=0 ensures live reading without caching issues
+        return conn.read(worksheet="Sheet1", ttl=0).fillna("")
     except Exception as e:
         st.error(f"Error connecting to Google Sheets DB: {e}")
         return pd.DataFrame(columns=[
@@ -117,8 +117,8 @@ def get_emoji(gender):
 
 def get_or_generate_family_id(surname, village):
     if not df_db.empty:
-        match = df_db[(df_db['Surname'].astype(str).str.lower() == surname.lower()) & 
-                      (df_db['Native Village'].astype(str).str.lower() == village.lower())]
+        match = df_db[(df_db['Surname'].astype(str).str.strip().str.lower() == surname.strip().lower()) & 
+                      (df_db['Native Village'].astype(str).str.strip().str.lower() == village.strip().lower())]
         if not match.empty:
             return str(match.iloc[0]['Family ID'])
     
@@ -143,14 +143,16 @@ if option == "🔍 Search & View Tree":
     with col_search3: search_village = st.text_input("3. Enter Native Village:", placeholder="e.g., Veeravelli").strip()
         
     if st.button("Generate Interactive Tree / వంశవృక్షాన్ని చూపించు", type="primary"):
+        # Fetch fresh data on search click
+        df_db = load_data()
         result = pd.DataFrame()
         if not df_db.empty:
             if search_id: 
-                result = df_db[df_db['Family ID'].astype(str) == search_id]
+                result = df_db[df_db['Family ID'].astype(str).str.strip() == search_id]
             elif search_surname: 
-                result = df_db[df_db['Surname'].astype(str).str.lower() == search_surname.lower()]
+                result = df_db[df_db['Surname'].astype(str).str.strip().str.lower() == search_surname.lower()]
             elif search_village: 
-                result = df_db[df_db['Native Village'].astype(str).str.lower() == search_village.lower()]
+                result = df_db[df_db['Native Village'].astype(str).str.strip().str.lower() == search_village.lower()]
         
         if not result.empty:
             unique_families = result['Family ID'].unique()
@@ -344,7 +346,7 @@ elif option == "➕ Add Family Members":
             final_spouse_te = spouse_te.strip() if spouse_te.strip() else auto_translate_to_telugu(spouse_en)
             
             new_row = pd.DataFrame([{
-                "Family ID": assigned_f_id, 
+                "Family ID": str(assigned_f_id), 
                 "Surname": surname, 
                 "Native Village": village, 
                 "Name (EN)": name_en, 
@@ -357,7 +359,8 @@ elif option == "➕ Add Family Members":
             }])
             
             updated_df = pd.concat([df_db, new_row], ignore_index=True)
-            conn.update(data=updated_df)
+            conn.update(worksheet="Sheet1", data=updated_df)
+            st.cache_data.clear()
             st.success(f"🚀 Saved Successfully to Google Sheets! Family ID: {assigned_f_id}")
             st.rerun()
         else:
@@ -373,14 +376,14 @@ elif option == "✏️ Edit Family Members":
     target_id = st.text_input("Enter Family ID to Edit details:", placeholder="e.g., 203222").strip()
     
     if target_id and not df_db.empty:
-        filtered_df = df_db[df_db["Family ID"].astype(str) == target_id]
+        filtered_df = df_db[df_db["Family ID"].astype(str).str.strip() == target_id]
         
         if not filtered_df.empty:
             member_names = filtered_df["Name (EN)"].tolist()
             selected_name = st.selectbox("Select Member to Edit:", member_names)
             
             # Find row index in global df_db
-            target_index = df_db[(df_db["Family ID"].astype(str) == target_id) & (df_db["Name (EN)"] == selected_name)].index[0]
+            target_index = df_db[(df_db["Family ID"].astype(str).str.strip() == target_id) & (df_db["Name (EN)"] == selected_name)].index[0]
             member_to_edit = df_db.loc[target_index]
             
             with st.form("edit_member_form"):
@@ -410,7 +413,8 @@ elif option == "✏️ Edit Family Members":
             with col_del1:
                 if st.button("🗑️ Delete This Member", type="secondary"):
                     df_db = df_db.drop(target_index).reset_index(drop=True)
-                    conn.update(data=df_db)
+                    conn.update(worksheet="Sheet1", data=df_db)
+                    st.cache_data.clear()
                     st.success("❌ Removed from Google Sheets successfully!")
                     st.rerun()
                 
@@ -424,7 +428,8 @@ elif option == "✏️ Edit Family Members":
                 df_db.loc[target_index, "Parents / Relation"] = u_parents
                 df_db.loc[target_index, "Relationship Description"] = u_relation
                 
-                conn.update(data=df_db)
+                conn.update(worksheet="Sheet1", data=df_db)
+                st.cache_data.clear()
                 st.success("🔄 Member updated in Google Sheets successfully!")
                 st.rerun()
         else:
