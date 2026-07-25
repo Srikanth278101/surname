@@ -88,7 +88,6 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data():
     try:
-        # ttl=0 ensures live reading without caching issues
         return conn.read(worksheet="Sheet1", ttl=0).fillna("")
     except Exception as e:
         st.error(f"Error connecting to Google Sheets DB: {e}")
@@ -118,7 +117,7 @@ def get_emoji(gender):
 def get_or_generate_family_id(surname, village):
     if not df_db.empty:
         match = df_db[(df_db['Surname'].astype(str).str.strip().str.lower() == surname.strip().lower()) & 
-                      (df_db['Native Village'].astype(str).str.strip().str.lower() == village.strip().lower())]
+                     (df_db['Native Village'].astype(str).str.strip().str.lower() == village.strip().lower())]
         if not match.empty:
             return str(match.iloc[0]['Family ID'])
     
@@ -143,7 +142,6 @@ if option == "🔍 Search & View Tree":
     with col_search3: search_village = st.text_input("3. Enter Native Village:", placeholder="e.g., Veeravelli").strip()
         
     if st.button("Generate Interactive Tree / వంశవృక్షాన్ని చూపించు", type="primary"):
-        # Fetch fresh data on search click
         df_db = load_data()
         result = pd.DataFrame()
         if not df_db.empty:
@@ -373,18 +371,38 @@ elif option == "➕ Add Family Members":
 # ----------------- OPTION 3: EDIT FAMILY MEMBERS -----------------
 elif option == "✏️ Edit Family Members":
     st.subheader("✏️ Edit Family Member Details")
-    target_id = st.text_input("Enter Family ID to Edit details:", placeholder="e.g., 203222").strip()
     
-    if target_id and not df_db.empty:
-        filtered_df = df_db[df_db["Family ID"].astype(str).str.strip() == target_id]
+    # సెర్చ్ ఆప్షన్స్: Family ID లేదా Surname లేదా Native Village ద్వారా వెతకవచ్చు
+    col_e1, col_e2, col_e3 = st.columns(3)
+    with col_e1: edit_search_id = st.text_input("Search by Family ID:", placeholder="e.g., 203222").strip()
+    with col_e2: edit_search_surname = st.text_input("Search by Surname:", placeholder="e.g., Thimmapuram").strip()
+    with col_e3: edit_search_village = st.text_input("Search by Village:", placeholder="e.g., Veeravelli").strip()
+    
+    filtered_edit_df = pd.DataFrame()
+    if not df_db.empty:
+        filtered_edit_df = df_db.copy()
+        if edit_search_id:
+            filtered_edit_df = filtered_edit_df[filtered_edit_df["Family ID"].astype(str).str.strip() == edit_search_id]
+        if edit_search_surname:
+            filtered_edit_df = filtered_edit_df[filtered_edit_df["Surname"].astype(str).str.strip().str.lower() == edit_search_surname.lower()]
+        if edit_search_village:
+            filtered_edit_df = filtered_edit_df[filtered_edit_df["Native Village"].astype(str).str.strip().str.lower() == edit_search_village.lower()]
+
+    if not filtered_edit_df.empty:
+        # మెంబర్ పేరు మరియు వారి Family ID ని కలిపి సెలెక్ట్ బాక్స్ లో చూపించడం
+        member_options = [f"{row['Name (EN ____)']} (ID: {row['Family ID']})".replace(" (EN ____)", "") for idx, row in filtered_edit_df.iterrows()]
         
-        if not filtered_df.empty:
-            member_names = filtered_df["Name (EN)"].tolist()
-            selected_name = st.selectbox("Select Member to Edit:", member_names)
+        # పైన ఉన్న లైన్ లో చిన్న కరెక్షన్ కోసం సింపుల్ లిస్ట్ కాంప్రహెన్షన్ వాడదాం:
+        member_options = []
+        for idx, row in filtered_edit_df.iterrows():
+            member_options.append(f"{row['Name (EN)']} (ID: {row['Family ID']} - Village: {row['Native Village']})")
             
-            # Find row index in global df_db
-            target_index = df_db[(df_db["Family ID"].astype(str).str.strip() == target_id) & (df_db["Name (EN)"] == selected_name)].index[0]
-            member_to_edit = df_db.loc[target_index]
+        selected_member_str = st.selectbox("Select Member to Edit:", member_options)
+        
+        if selected_member_str:
+            # సెలెక్ట్ చేసిన ఆప్షన్ నుండి ఒరిజినల్ ఇండెక్స్ కనుగొనడం
+            selected_row_idx = filtered_edit_df.iloc[member_options.index(selected_member_str)].name
+            member_to_edit = df_db.loc[selected_row_idx]
             
             with st.form("edit_member_form"):
                 u_surname = st.text_input("Surname:", value=str(member_to_edit["Surname"]))
@@ -409,28 +427,29 @@ elif option == "✏️ Edit Family Members":
                 
                 update_btn = st.form_submit_button("🔄 Update Member Details", type="primary")
                 
-            col_del1, col_del2 = st.columns([1, 4])
-            with col_del1:
-                if st.button("🗑️ Delete This Member", type="secondary"):
-                    df_db = df_db.drop(target_index).reset_index(drop=True)
-                    conn.update(worksheet="Sheet1", data=df_db)
-                    st.cache_data.clear()
-                    st.success("❌ Removed from Google Sheets successfully!")
-                    st.rerun()
-                
             if update_btn:
-                df_db.loc[target_index, "Surname"] = u_surname
-                df_db.loc[target_index, "Native Village"] = u_village
-                df_db.loc[target_index, "Name (EN)"] = u_name_en
-                df_db.loc[target_index, "Name (TE)"] = u_name_te
-                df_db.loc[target_index, "Spouse (EN)"] = u_spouse_en
-                df_db.loc[target_index, "Spouse (TE)"] = u_spouse_te
-                df_db.loc[target_index, "Parents / Relation"] = u_parents
-                df_db.loc[target_index, "Relationship Description"] = u_relation
+                df_db.loc[selected_row_idx, "Surname"] = u_surname
+                df_db.loc[selected_row_idx, "Native Village"] = u_village
+                df_db.loc[selected_row_idx, "Name (EN)"] = u_name_en
+                df_db.loc[selected_row_idx, "Name (TE)"] = u_name_te
+                df_db.loc[selected_row_idx, "Spouse (EN)"] = u_spouse_en
+                df_db.loc[selected_row_idx, "Spouse (TE)"] = u_spouse_te
+                df_db.loc[selected_row_idx, "Parents / Relation"] = u_parents
+                df_db.loc[selected_row_idx, "Relationship Description"] = u_relation
                 
                 conn.update(worksheet="Sheet1", data=df_db)
                 st.cache_data.clear()
                 st.success("🔄 Member updated in Google Sheets successfully!")
                 st.rerun()
+                
+            if st.button("🗑️ Delete This Member", type="secondary"):
+                df_db = df_db.drop(selected_row_idx).reset_index(drop=True)
+                conn.update(worksheet="Sheet1", data=df_db)
+                st.cache_data.clear()
+                st.success("❌ Removed from Google Sheets successfully!")
+                st.rerun()
+    else:
+        if edit_search_id or edit_search_surname or edit_search_village:
+            st.warning("⚠️ ఇచ్చిన వివరాలతో ఎలాంటి సభ్యులు కనుగొనబడలేదు.")
         else:
-            st.warning("⚠️ No members found with this Family ID.")
+            st.info("ℹ️ దయచేసి పైన Family ID, Surname లేదా Native Village లో ఏదో ఒకటి ఎంటర్ చేసి మెంబర్‌ని వెతకండి.")
