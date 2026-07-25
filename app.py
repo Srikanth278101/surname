@@ -98,15 +98,21 @@ def load_data():
 
 df_db = load_data()
 
-# SideBar Stats
-st.sidebar.markdown("### 📊 Family Statistics")
-if not df_db.empty and 'Spouse (EN)' in df_db.columns:
-    spouses_count = df_db['Spouse (EN)'].apply(lambda x: 1 if str(x).strip() != "" else 0).sum()
-    total_members = len(df_db) + spouses_count
-else:
-    total_members = 0
+# Session State లో సెర్చ్ చేసిన కుటుంబపు కౌంట్ ని స్టోర్ చేయడానికి
+if 'searched_family_members_count' not in st.session_state:
+    st.session_state.searched_family_members_count = 0
+if 'searched_family_id_display' not in st.session_state:
+    st.session_state.searched_family_id_display = "None"
 
-st.sidebar.metric(label="Total Members Tracked", value=int(total_members))
+# SideBar Stats (కేవలం సెర్చ్ చేసిన కుటుంబానికే వర్తిస్తుంది)
+st.sidebar.markdown("### 📊 Family Statistics")
+if st.session_state.searched_family_id_display != "None":
+    st.sidebar.info(f"🏡 Family ID: {st.session_state.searched_family_id_display}")
+    st.sidebar.metric(label="Selected Family Members", value=int(st.session_state.searched_family_members_count))
+else:
+    st.sidebar.metric(label="Selected Family Members", value=0)
+    st.sidebar.caption("*(సెర్చ్ చేసిన తర్వాత ఆ కుటుంబ సభ్యుల సంఖ్య ఇక్కడ కనిపిస్తుంది)*")
+
 st.sidebar.markdown("---")
 
 option = st.sidebar.radio("Navigation Menu", ["🔍 Search & View Tree", "➕ Add Family Members", "✏️ Edit Family Members"])
@@ -158,9 +164,17 @@ if option == "🔍 Search & View Tree":
                 family_data = result[result['Family ID'] == f_id]
                 sample_row = family_data.iloc[0]
                 
+                # ఈ కుటుంబంలోని టోటల్ మెంబర్స్ (భార్య/భర్తలతో కలిపి) లెక్కించడం
+                spouses_in_fam = family_data['Spouse (EN)'].apply(lambda x: 1 if str(x).strip() != "" else 0).sum()
+                fam_total_count = len(family_data) + spouses_in_fam
+                
+                # సెషన్ స్టేట్‌లో సేవ్ చేయడం వల్ల సైడ్‌బార్‌లో అప్‌డేట్ అవుతుంది
+                st.session_state.searched_family_members_count = fam_total_count
+                st.session_state.searched_family_id_display = f_id
+                
                 col_info, col_print = st.columns([3, 1])
                 with col_info:
-                    st.info(f"🏡 **Family ID: {f_id}** | Surname: {sample_row['Surname']} | Village: {sample_row['Native Village']}")
+                    st.info(f"🏡 **Family ID: {f_id}** | Surname: {sample_row['Surname']} | Village: {sample_row['Native Village']} | Total Members: **{fam_total_count}**")
                 with col_print:
                     components.html("""
                         <button onclick="window.parent.print()" style="
