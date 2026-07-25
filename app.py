@@ -372,7 +372,6 @@ elif option == "➕ Add Family Members":
 elif option == "✏️ Edit Family Members":
     st.subheader("✏️ Edit Family Member Details")
     
-    # సెర్చ్ ఆప్షన్స్: Family ID లేదా Surname లేదా Native Village ద్వారా వెతకవచ్చు
     col_e1, col_e2, col_e3 = st.columns(3)
     with col_e1: edit_search_id = st.text_input("Search by Family ID:", placeholder="e.g., 203222").strip()
     with col_e2: edit_search_surname = st.text_input("Search by Surname:", placeholder="e.g., Thimmapuram").strip()
@@ -389,10 +388,6 @@ elif option == "✏️ Edit Family Members":
             filtered_edit_df = filtered_edit_df[filtered_edit_df["Native Village"].astype(str).str.strip().str.lower() == edit_search_village.lower()]
 
     if not filtered_edit_df.empty:
-        # మెంబర్ పేరు మరియు వారి Family ID ని కలిపి సెలెక్ట్ బాక్స్ లో చూపించడం
-        member_options = [f"{row['Name (EN ____)']} (ID: {row['Family ID']})".replace(" (EN ____)", "") for idx, row in filtered_edit_df.iterrows()]
-        
-        # పైన ఉన్న లైన్ లో చిన్న కరెక్షన్ కోసం సింపుల్ లిస్ట్ కాంప్రహెన్షన్ వాడదాం:
         member_options = []
         for idx, row in filtered_edit_df.iterrows():
             member_options.append(f"{row['Name (EN)']} (ID: {row['Family ID']} - Village: {row['Native Village']})")
@@ -400,7 +395,6 @@ elif option == "✏️ Edit Family Members":
         selected_member_str = st.selectbox("Select Member to Edit:", member_options)
         
         if selected_member_str:
-            # సెలెక్ట్ చేసిన ఆప్షన్ నుండి ఒరిజినల్ ఇండెక్స్ కనుగొనడం
             selected_row_idx = filtered_edit_df.iloc[member_options.index(selected_member_str)].name
             member_to_edit = df_db.loc[selected_row_idx]
             
