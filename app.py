@@ -115,7 +115,12 @@ else:
 
 st.sidebar.markdown("---")
 
-option = st.sidebar.radio("Navigation Menu", ["🔍 Search & View Tree", "➕ Add Family Members", "✏️ Edit Family Members"])
+option = st.sidebar.radio("Navigation Menu", [
+    "🔍 Search & View Tree", 
+    "📈 Generation-wise View", 
+    "➕ Add Family Members", 
+    "✏️ Edit Family Members"
+])
 
 def get_emoji(gender):
     return "👨" if str(gender).strip().lower() == "male" else "👩"
@@ -164,11 +169,9 @@ if option == "🔍 Search & View Tree":
                 family_data = result[result['Family ID'] == f_id]
                 sample_row = family_data.iloc[0]
                 
-                # ఈ కుటుంబంలోని టోటల్ మెంబర్స్ (భార్య/భర్తలతో కలిపి) లెక్కించడం
                 spouses_in_fam = family_data['Spouse (EN)'].apply(lambda x: 1 if str(x).strip() != "" else 0).sum()
                 fam_total_count = len(family_data) + spouses_in_fam
                 
-                # సెషన్ స్టేట్‌లో సేవ్ చేయడం వల్ల సైడ్‌బార్‌లో అప్‌డేట్ అవుతుంది
                 st.session_state.searched_family_members_count = fam_total_count
                 st.session_state.searched_family_id_display = f_id
                 
@@ -310,7 +313,64 @@ if option == "🔍 Search & View Tree":
         else:
             st.error("❌ No records found!")
 
-# ----------------- OPTION 2: ADD FAMILY MEMBERS -----------------
+# ----------------- OPTION 2: GENERATION-WISE VIEW -----------------
+elif option == "📈 Generation-wise View":
+    st.subheader("📈 Generation-wise Family View / తరాల వారీగా వంశవృక్షం")
+    
+    gen_search_id = st.text_input("Enter Family ID to view generation-wise:", placeholder="e.g., 203222").strip()
+    
+    if gen_search_id:
+        df_db = load_data()
+        fam_data = df_db[df_db['Family ID'].astype(str).str.strip() == gen_search_id]
+        
+        if not fam_data.empty:
+            parent_map = {}
+            for idx, row in fam_data.iterrows():
+                curr_key = f"{row['Name (EN)']}"
+                if str(row['Spouse (EN)']).strip() != "":
+                    curr_key = f"{row['Name (EN)']} & {row['Spouse (EN)']}"
+                parent_map[curr_key.strip()] = str(row['Parents / Relation']).strip()
+            
+            def get_level(node_key):
+                level = 0
+                current = node_key.strip()
+                visited = set()
+                while current in parent_map and parent_map[current] != "None (Eldest Generation)" and parent_map[current] != "":
+                    if current in visited: break
+                    visited.add(current)
+                    current = parent_map[current]
+                    level += 1
+                    if level > 20: break
+                return level
+
+            fam_data['Generation_Level'] = fam_data.apply(
+                lambda r: get_level(f"{r['Name (EN)']}" + (f" & {r['Spouse (EN)']}" if str(r['Spouse (EN)]).strip() != "" else "")), 
+                axis=1
+            )
+            
+            max_gen = fam_data['Generation_Level'].max()
+            
+            for gen in range(max_gen + 1):
+                gen_members = fam_data[fam_data['Generation_Level'] == gen]
+                if not gen_members.empty:
+                    gen_title = "1st Generation (మూల పురుషులు/పెద్దలు)" if gen == 0 else f"{gen + 1}th Generation / {gen + 1}వ తరము"
+                    st.markdown(f"### 🌳 {gen_title}")
+                    
+                    for _, row in gen_members.iterrows():
+                        p_emoji = "👨" if str(row['Gender']).strip().lower() == "male" else "👩"
+                        spouse_info = f" ❤️ (Spouse: {row['Spouse (EN)']})" if str(row['Spouse (EN)]).strip() != "" else ""
+                        relation_info = f" — *{row['Relationship Description']}*" if str(row['Relationship Description']).strip() else ""
+                        
+                        st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;👉 **{p_emoji} {row['Name (EN)']}" + 
+                                    (f" ({row['Name (TE)']})" if row['Name (TE)'] else "") + 
+                                    f"{spouse_info}{relation_info}**")
+                    st.markdown("---")
+        else:
+            st.error("❌ ఈ Family ID తో ఎలాంటి వివరాలు కనుగొనబడలేదు.")
+    else:
+        st.info("ℹ️ దయచేసి తరాల వారీగా చూడటానికి పైన Family ID ని ఎంటర్ చేయండి.")
+
+# ----------------- OPTION 3: ADD FAMILY MEMBERS -----------------
 elif option == "➕ Add Family Members":
     st.subheader("Expand Your Family Tree / కొత్త సభ్యులను చేర్చండి")
     
@@ -382,7 +442,7 @@ elif option == "➕ Add Family Members":
     st.dataframe(df_db, use_container_width=True, height=320)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ----------------- OPTION 3: EDIT FAMILY MEMBERS -----------------
+# ----------------- OPTION 4: EDIT FAMILY MEMBERS -----------------
 elif option == "✏️ Edit Family Members":
     st.subheader("✏️ Edit Family Member Details")
     
