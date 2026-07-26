@@ -339,7 +339,12 @@ elif option == "📈 Generation-wise View":
             for f_id in unique_f_ids:
                 sub_fam_data = fam_data[fam_data['Family ID'] == f_id]
                 sample_r = sub_fam_data.iloc[0]
-                st.info(f"🏡 **Family ID: {f_id}** | Surname: {sample_r['Surname']} | Village: {sample_r['Native Village']}")
+                
+                # టోటల్ ఫ్యామిలీ మెంబర్స్ కౌంట్ (భార్యాభర్తలతో కలిపి)
+                spouses_count = sub_fam_data['Spouse (EN)'].apply(lambda x: 1 if str(x).strip() != "" else 0).sum()
+                total_fam_members = len(sub_fam_data) + spouses_count
+                
+                st.info(f"🏡 **Family ID: {f_id}** | Surname: {sample_r['Surname']} | Village: {sample_r['Native Village']} | **Total Family Members: {total_fam_members}**")
                 
                 parent_map = {}
                 for idx, row in sub_fam_data.iterrows():
@@ -374,8 +379,12 @@ elif option == "📈 Generation-wise View":
                 for gen in range(max_gen + 1):
                     gen_members = sub_fam_data[sub_fam_data['Generation_Level'] == gen]
                     if not gen_members.empty:
+                        # ఆ తరంలో ఉన్న మెంబర్స్ + వారి స్పౌజ్ కౌంట్స్ లెక్కించడం
+                        gen_spouses = gen_members['Spouse (EN)'].apply(lambda x: 1 if str(x).strip() != "" else 0).sum()
+                        gen_total_count = len(gen_members) + gen_spouses
+                        
                         gen_title = "1st Generation (మూల పురుషులు/పెద్దలు)" if gen == 0 else f"{gen + 1}th Generation / {gen + 1}వ తరము"
-                        st.markdown(f"### 🌳 {gen_title}")
+                        st.markdown(f"### 🌳 {gen_title} — <span style='color: #10B981; font-size: 18px;'>Total Members: {gen_total_count}</span>", unsafe_allow_html=True)
                         
                         for _, row in gen_members.iterrows():
                             p_emoji = "👨" if str(row['Gender']).strip().lower() == "male" else "👩"
