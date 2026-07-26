@@ -317,61 +317,79 @@ if option == "🔍 Search & View Tree":
 elif option == "📈 Generation-wise View":
     st.subheader("📈 Generation-wise Family View / తరాల వారీగా వంశవృక్షం")
     
-    gen_search_id = st.text_input("Enter Family ID to view generation-wise:", placeholder="e.g., 203222").strip()
+    col_g1, col_g2, col_g3 = st.columns(3)
+    with col_g1: gen_search_id = st.text_input("1. Enter Family ID:", placeholder="e.g., 203222").strip()
+    with col_g2: gen_search_surname = st.text_input("2. Enter Surname:", placeholder="e.g., Thimmapuram").strip()
+    with col_g3: gen_search_village = st.text_input("3. Enter Native Village:", placeholder="e.g., Veeravelli").strip()
     
-    if gen_search_id:
+    if st.button("Show Generation-wise View / తరాల వారీగా చూపించు", type="primary"):
         df_db = load_data()
-        fam_data = df_db[df_db['Family ID'].astype(str).str.strip() == gen_search_id]
+        fam_data = pd.DataFrame()
+        
+        if not df_db.empty:
+            if gen_search_id:
+                fam_data = df_db[df_db['Family ID'].astype(str).str.strip() == gen_search_id]
+            elif gen_search_surname:
+                fam_data = df_db[df_db['Surname'].astype(str).str.strip().str.lower() == gen_search_surname.lower()]
+            elif gen_search_village:
+                fam_data = df_db[df_db['Native Village'].astype(str).str.strip().str.lower() == gen_search_village.lower()]
         
         if not fam_data.empty:
-            parent_map = {}
-            for idx, row in fam_data.iterrows():
-                curr_key = f"{row['Name (EN)']}"
-                if str(row['Spouse (EN)']).strip() != "":
-                    curr_key = f"{row['Name (EN)']} & {row['Spouse (EN)']}"
-                parent_map[curr_key.strip()] = str(row['Parents / Relation']).strip()
-            
-            def get_level(node_key):
-                level = 0
-                current = node_key.strip()
-                visited = set()
-                while current in parent_map and parent_map[current] != "None (Eldest Generation)" and parent_map[current] != "":
-                    if current in visited: break
-                    visited.add(current)
-                    current = parent_map[current]
-                    level += 1
-                    if level > 20: break
-                return level
+            unique_f_ids = fam_data['Family ID'].unique()
+            for f_id in unique_f_ids:
+                sub_fam_data = fam_data[fam_data['Family ID'] == f_id]
+                sample_r = sub_fam_data.iloc[0]
+                st.info(f"🏡 **Family ID: {f_id}** | Surname: {sample_r['Surname']} | Village: {sample_r['Native Village']}")
+                
+                parent_map = {}
+                for idx, row in sub_fam_data.iterrows():
+                    curr_key = f"{row['Name (EN)']}"
+                    if str(row['Spouse (EN)']).strip() != "":
+                        curr_key = f"{row['Name (EN)']} & {row['Spouse (EN)']}"
+                    parent_map[curr_key.strip()] = str(row['Parents / Relation']).strip()
+                
+                def get_level(node_key):
+                    level = 0
+                    current = node_key.strip()
+                    visited = set()
+                    while current in parent_map and parent_map[current] != "None (Eldest Generation)" and parent_map[current] != "":
+                        if current in visited: break
+                        visited.add(current)
+                        current = parent_map[current]
+                        level += 1
+                        if level > 20: break
+                    return level
 
-            def compute_gen_level(r):
-                name = str(r['Name (EN)']).strip()
-                spouse = str(r['Spouse (EN)']).strip()
-                key = f"{name} & {spouse}" if spouse != "" else name
-                return get_level(key)
+                def compute_gen_level(r):
+                    name = str(r['Name (EN)']).strip()
+                    spouse = str(r['Spouse (EN)']).strip()
+                    key = f"{name} & {spouse}" if spouse != "" else name
+                    return get_level(key)
 
-            fam_data['Generation_Level'] = fam_data.apply(compute_gen_level, axis=1)
-            
-            max_gen = fam_data['Generation_Level'].max()
-            
-            for gen in range(max_gen + 1):
-                gen_members = fam_data[fam_data['Generation_Level'] == gen]
-                if not gen_members.empty:
-                    gen_title = "1st Generation (మూల పురుషులు/పెద్దలు)" if gen == 0 else f"{gen + 1}th Generation / {gen + 1}వ తరము"
-                    st.markdown(f"### 🌳 {gen_title}")
-                    
-                    for _, row in gen_members.iterrows():
-                        p_emoji = "👨" if str(row['Gender']).strip().lower() == "male" else "👩"
-                        spouse_info = f" ❤️ (Spouse: {row['Spouse (EN)']})" if str(row['Spouse (EN)']).strip() != "" else ""
-                        relation_info = f" — *{row['Relationship Description']}*" if str(row['Relationship Description']).strip() else ""
+                sub_fam_data = sub_fam_data.copy()
+                sub_fam_data['Generation_Level'] = sub_fam_data.apply(compute_gen_level, axis=1)
+                
+                max_gen = sub_fam_data['Generation_Level'].max()
+                
+                for gen in range(max_gen + 1):
+                    gen_members = sub_fam_data[sub_fam_data['Generation_Level'] == gen]
+                    if not gen_members.empty:
+                        gen_title = "1st Generation (మూల పురుషులు/పెద్దలు)" if gen == 0 else f"{gen + 1}th Generation / {gen + 1}వ తరము"
+                        st.markdown(f"### 🌳 {gen_title}")
                         
-                        st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;👉 **{p_emoji} {row['Name (EN)']}" + 
-                                    (f" ({row['Name (TE)']})" if row['Name (TE)'] else "") + 
-                                    f"{spouse_info}{relation_info}**")
-                    st.markdown("---")
+                        for _, row in gen_members.iterrows():
+                            p_emoji = "👨" if str(row['Gender']).strip().lower() == "male" else "👩"
+                            spouse_info = f" ❤️ (Spouse: {row['Spouse (EN)']})" if str(row['Spouse (EN)']).strip() != "" else ""
+                            relation_info = f" — *{row['Relationship Description']}*" if str(row['Relationship Description']).strip() else ""
+                            
+                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;👉 **{p_emoji} {row['Name (EN)']}" + 
+                                        (f" ({row['Name (TE)']})" if row['Name (TE)'] else "") + 
+                                        f"{spouse_info}{relation_info}**")
+                        st.markdown("---")
         else:
-            st.error("❌ ఈ Family ID తో ఎలాంటి వివరాలు కనుగొనబడలేదు.")
+            st.error("❌ ఇచ్చిన వివరాలతో ఎలాంటి కుటుంబ సభ్యులు కనుగొనబడలేదు.")
     else:
-        st.info("ℹ️ దయచేసి తరాల వారీగా చూడటానికి పైన Family ID ని ఎంటర్ చేయండి.")
+        st.info("ℹ️ దయచేసి పైన Family ID, Surname లేదా Native Village లో ఏదో ఒకటి ఎంటర్ చేసి 'Show Generation-wise View' బటన్ నొక్కండి.")
 
 # ----------------- OPTION 3: ADD FAMILY MEMBERS -----------------
 elif option == "➕ Add Family Members":
