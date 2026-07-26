@@ -343,10 +343,13 @@ elif option == "📈 Generation-wise View":
                     if level > 20: break
                 return level
 
-            fam_data['Generation_Level'] = fam_data.apply(
-                lambda r: get_level(f"{r['Name (EN)']}" + (f" & {r['Spouse (EN)']}" if str(r['Spouse (EN)]).strip() != "" else "")), 
-                axis=1
-            )
+            def compute_gen_level(r):
+                name = str(r['Name (EN)']).strip()
+                spouse = str(r['Spouse (EN)']).strip()
+                key = f"{name} & {spouse}" if spouse != "" else name
+                return get_level(key)
+
+            fam_data['Generation_Level'] = fam_data.apply(compute_gen_level, axis=1)
             
             max_gen = fam_data['Generation_Level'].max()
             
@@ -358,7 +361,7 @@ elif option == "📈 Generation-wise View":
                     
                     for _, row in gen_members.iterrows():
                         p_emoji = "👨" if str(row['Gender']).strip().lower() == "male" else "👩"
-                        spouse_info = f" ❤️ (Spouse: {row['Spouse (EN)']})" if str(row['Spouse (EN)]).strip() != "" else ""
+                        spouse_info = f" ❤️ (Spouse: {row['Spouse (EN)']})" if str(row['Spouse (EN)']).strip() != "" else ""
                         relation_info = f" — *{row['Relationship Description']}*" if str(row['Relationship Description']).strip() else ""
                         
                         st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;👉 **{p_emoji} {row['Name (EN)']}" + 
