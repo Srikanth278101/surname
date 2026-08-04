@@ -468,9 +468,9 @@ elif option == "➕ Add Family Members":
         else:
             st.error("⚠️ ఖచ్చితంగా Surname, Village మరియు Name (EN) వివరాలను నమోదు చేయండి!")
 
-    st.markdown('<div class="custom-table-container">', unsafe_allow_html=True)
-    st.dataframe(df_db, use_container_width=True, height=320)
-    st.markdown('</div>', unsafe_allow_html=True)
+    #st.markdown('<div class="custom-table-container">', unsafe_allow_html=True)
+    #st.dataframe(df_db, use_container_width=True, height=320)
+    #st.markdown('</div>', unsafe_allow_html=True)
 
 # ----------------- OPTION 4: EDIT FAMILY MEMBERS -----------------
 elif option == "✏️ Edit Family Members":
